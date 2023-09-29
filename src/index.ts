@@ -8,14 +8,24 @@ interface SubjectTable {
     [key: string]: Number[]
 }
 
+
 interface YearTable {
+    [key: string]: Number[]
+}
+
+interface YearEntry {
     year: string,
     points: SubjectTable
 }
 
-type ResultTable = {
+type YearResultTable = {
     [key: string]: SubjectTable
 }
+
+type SubjectResultTable = {
+    [key: string]: YearTable
+}
+
 
         
 const parseTable = (container: Element): SubjectTable | null => {
@@ -54,9 +64,9 @@ const getUrlMap = (): Promise<string[]> => {
 }
 
 
-const getByURL = (url: string): Promise<YearTable[]> => {
+const getByYear = (url: string): Promise<YearEntry[]> => {
     return new Promise((resolve, reject) => {
-        const result: YearTable[] = [];
+        const result: YearEntry[] = [];
         let year: string;
 
         axios.get(url)
@@ -74,7 +84,7 @@ const getByURL = (url: string): Promise<YearTable[]> => {
                     } else {
                         const table = parseTable(childContainer);
                         if (!table) return reject("Failed to parse table");
-                        result.push(<YearTable>{year: year, points: table});
+                        result.push(<YearEntry>{year: year, points: table});
                     }
                 });
             } else {
@@ -86,7 +96,7 @@ const getByURL = (url: string): Promise<YearTable[]> => {
                 
                 const table = parseTable(container);
                 if (!table) return reject("Failed to parse table");
-                result.push(<YearTable>{year: year, points: table});
+                result.push(<YearEntry>{year: year, points: table});
             }
 
             return resolve(result);
@@ -100,20 +110,29 @@ const getByURL = (url: string): Promise<YearTable[]> => {
 
 
 const main = async () => {
-    const result: ResultTable = {};
+    const result: YearResultTable = {};
+    const result2: SubjectResultTable = {};
 
     const links = await getUrlMap()
 
     for await (const url of links) {
-        const table = await getByURL(url);
-        console.log(url);
+        const table = await getByYear(url);
         
-        table.forEach(n => {
-            result[n.year] = n.points;
+        table.forEach(e => {
+            
+            Object.keys(e.points).forEach(subject => {
+                const points = e.points[subject];
+
+                if (!result2[subject]) result2[subject] = { [e.year]: points };
+                result2[subject][e.year] = points;
+            });
+            
+            result[e.year] = e.points;
         });
     }
 
     fs.writeFileSync('./out/yo-results.json', JSON.stringify(result));
+    fs.writeFileSync('./out/yo-results-subject.json', JSON.stringify(result2));
     console.log("Done!");
 }
 
